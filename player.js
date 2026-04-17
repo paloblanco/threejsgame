@@ -16,7 +16,7 @@ const PH = 0.50; // half-height  →  total 1.0 unit = one block tall
 const PW = 0.22; // half-width/depth
 
 const GROUND_REACH  = 0.28; // extra downward reach for ground snap
-const WALK_FRAME_SECS = 0.14; // seconds per walk animation frame
+const WALK_FRAME_SECS = 0.10; // seconds per walk animation frame
 
 // ── Sprite atlas ───────────────────────────────────────────────────────────────
 const SHEET_COLS = 16;
@@ -74,9 +74,9 @@ export class Player {
      * @type {Record<string, number[]>}
      */
     this.sprites = {
-      front: [238, 239],
-      back:  [253, 254],
-      right: [246, 247],
+      front: [238, 240, 239, 240, 239],
+      back:  [253, 255, 254, 255, 254],
+      right: [246, 248, 247,249,247],
     };
 
     /** Current camera-relative direction. @type {'front'|'back'|'right'} */
@@ -258,7 +258,8 @@ export class Player {
       this._walkTimer += dt;
       if (this._walkTimer >= WALK_FRAME_SECS) {
         this._walkTimer = 0;
-        this._walkFrame = this._walkFrame === 0 ? 1 : 0;
+        // this._walkFrame = this._walkFrame === 0 ? 1 : 0;
+        this._walkFrame = (this._walkFrame + 1) % 5;
       }
     } else {
       this._walkFrame = 0;

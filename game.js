@@ -19,7 +19,7 @@ scene.background = new THREE.Color(0x87ceeb);
 scene.fog        = new THREE.Fog(0x87ceeb, 40, 100);
 
 // ── Lighting ──────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
 
 const sun = new THREE.DirectionalLight(0xfff8e0, 1.2);
 sun.position.set(15, 30, 10);
