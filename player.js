@@ -15,32 +15,11 @@ const ACCEL_AIR    =  6;
 const PH = 0.50; // half-height  →  total 1.0 unit = one block tall
 const PW = 0.22; // half-width/depth
 
-const GROUND_REACH  = 0.28; // extra downward reach for ground snap
+const GROUND_SNAP   = 0.50; // feet can be this far below tile top and still snap to surface
 const WALK_FRAME_SECS = 0.10; // seconds per walk animation frame
 
 // ── Sprite atlas ───────────────────────────────────────────────────────────────
 const SHEET_COLS = 16;
-
-// ── Reusable raycasting objects ────────────────────────────────────────────────
-const _rc     = new THREE.Raycaster();
-const _origin = new THREE.Vector3();
-const _DOWN   = Object.freeze(new THREE.Vector3(0, -1, 0));
-const _UP     = Object.freeze(new THREE.Vector3(0,  1, 0));
-const _WALL_DIRS = [
-  new THREE.Vector3( 1, 0,  0),
-  new THREE.Vector3(-1, 0,  0),
-  new THREE.Vector3( 0, 0,  1),
-  new THREE.Vector3( 0, 0, -1),
-];
-const _GND_OFF = /** @type {[number,number][]} */ ([
-  [ 0,      0     ],
-  [ PW*0.8, PW*0.8],
-  [-PW*0.8, PW*0.8],
-  [ PW*0.8,-PW*0.8],
-  [-PW*0.8,-PW*0.8],
-]);
-/** @type {THREE.Intersection[]} */
-const _hits = [];
 
 // ── Player ─────────────────────────────────────────────────────────────────────
 
@@ -114,16 +93,16 @@ export class Player {
   // ── Per-frame update ───────────────────────────────────────────────────────
 
   /**
-   * @param {number}          dt
-   * @param {InputState}      inp
-   * @param {THREE.Object3D}  levelMesh
-   * @param {number}          cameraYaw
+   * @param {number}                     dt
+   * @param {InputState}                 inp
+   * @param {import('./level.js').Level} level
+   * @param {number}                     cameraYaw
    */
-  update(dt, inp, levelMesh, cameraYaw) {
+  update(dt, inp, level, cameraYaw) {
     this._applyMovement(dt, inp, cameraYaw);
     this._applyGravity(dt);
     this._integrate(dt);
-    this._resolveCollisions(levelMesh);
+    this._resolveCollisions(level);
     this._updateFacing();
     this._updateSprite(dt, cameraYaw);
     this._syncMesh();
@@ -163,71 +142,68 @@ export class Player {
     this.position.addScaledVector(this.velocity, dt);
   }
 
-  /** @param {THREE.Object3D} levelMesh */
-  _resolveCollisions(levelMesh) {
-    const wasOnGround  = this.onGround;
+  /** @param {import('./level.js').Level} level */
+  _resolveCollisions(level) {
+    const wasOnGround = this.onGround;
     this.onGround   = false;
     this.groundType = 's';
 
-    // 1. Ground — 5-point downward sweep
-    let bestGroundY    = -Infinity;
-    let bestGroundType = 's';
-    let foundGround    = false;
+    const colliders = level.getNearbyColliders(this.position.x, this.position.z, 2);
 
-    for (const [ox, oz] of _GND_OFF) {
-      _origin.set(this.position.x + ox, this.position.y, this.position.z + oz);
-      _rc.set(_origin, _DOWN);
-      _rc.near = 0;
-      _rc.far  = PH + GROUND_REACH;
-      _hits.length = 0;
-      _rc.intersectObject(levelMesh, true, _hits);
-      if (_hits.length > 0 && _hits[0].point.y > bestGroundY) {
-        bestGroundY    = _hits[0].point.y;
-        bestGroundType = /** @type {string} */ (_hits[0].object.userData?.tileType ?? 's');
-        foundGround    = true;
+    // ── Pass 1: Y (vertical) ────────────────────────────────────────────────────
+    let groundY    = -Infinity;
+    let groundType = 's';
+    let ceilY      =  Infinity;
+
+    for (const t of colliders) {
+      const ox = Math.min(this.position.x + PW, t.xMax) - Math.max(this.position.x - PW, t.xMin);
+      const oz = Math.min(this.position.z + PW, t.zMax) - Math.max(this.position.z - PW, t.zMin);
+      if (ox <= 0 || oz <= 0) continue;
+
+      const tileCY = (t.yMin + t.yMax) * 0.5;
+      const feetY  = this.position.y - PH;
+      const headY  = this.position.y + PH;
+
+      // Ground: player centre above tile centre, feet near or below tile top
+      if (this.position.y > tileCY && feetY >= t.yMax - GROUND_SNAP && feetY <= t.yMax + 0.05) {
+        if (t.yMax > groundY) { groundY = t.yMax; groundType = t.type; }
+      }
+      // Ceiling: player centre at or below tile centre, head inside tile
+      if (this.position.y <= tileCY && headY > t.yMin) {
+        if (t.yMin < ceilY) ceilY = t.yMin;
       }
     }
 
-    if (foundGround && this.velocity.y <= 0.2) {
-      this.position.y = bestGroundY + PH;
+    if (groundY > -Infinity && this.velocity.y <= 0.2) {
+      this.position.y = groundY + PH;
       if (this.velocity.y < 0) this.velocity.y = 0;
       this.onGround   = true;
-      this.groundType = bestGroundType;
+      this.groundType = groundType;
       if (!wasOnGround) this._squashTimer = 0.14;
     }
 
-    // 2. Ceiling
-    _origin.copy(this.position);
-    _rc.set(_origin, _UP);
-    _rc.near = 0;
-    _rc.far  = PH + 0.04;
-    _hits.length = 0;
-    _rc.intersectObject(levelMesh, true, _hits);
-    if (_hits.length > 0 && this.velocity.y > 0) {
-      this.position.y = _hits[0].point.y - PH;
+    if (ceilY < Infinity && this.velocity.y > 0) {
+      this.position.y = ceilY - PH;
       this.velocity.y = 0;
     }
 
-    // 3. Walls — max penetration across 2 heights per direction
-    const wallYLow = this.position.y - PH + 0.15;
-    const wallYMid = this.position.y;
+    // ── Pass 2: XZ (horizontal) ─────────────────────────────────────────────────
+    for (const t of colliders) {
+      const oy = Math.min(this.position.y + PH, t.yMax) - Math.max(this.position.y - PH, t.yMin);
+      if (oy <= 0) continue;
 
-    for (const dir of _WALL_DIRS) {
-      let maxPen = 0;
-      for (const wy of [wallYLow, wallYMid]) {
-        _origin.set(this.position.x, wy, this.position.z);
-        _rc.set(_origin, dir);
-        _rc.near = 0;
-        _rc.far  = PW + 0.04;
-        _hits.length = 0;
-        _rc.intersectObject(levelMesh, true, _hits);
-        if (_hits.length > 0) maxPen = Math.max(maxPen, PW + 0.04 - _hits[0].distance);
-      }
-      if (maxPen > 0) {
-        this.position.x -= dir.x * maxPen;
-        this.position.z -= dir.z * maxPen;
-        if (dir.x !== 0 && Math.sign(this.velocity.x) === Math.sign(dir.x)) this.velocity.x = 0;
-        if (dir.z !== 0 && Math.sign(this.velocity.z) === Math.sign(dir.z)) this.velocity.z = 0;
+      const ox = Math.min(this.position.x + PW, t.xMax) - Math.max(this.position.x - PW, t.xMin);
+      const oz = Math.min(this.position.z + PW, t.zMax) - Math.max(this.position.z - PW, t.zMin);
+      if (ox <= 0 || oz <= 0) continue;
+
+      if (ox <= oz) {
+        const push = this.position.x > (t.xMin + t.xMax) * 0.5 ? ox : -ox;
+        this.position.x += push;
+        if (Math.sign(this.velocity.x) !== Math.sign(push)) this.velocity.x = 0;
+      } else {
+        const push = this.position.z > (t.zMin + t.zMax) * 0.5 ? oz : -oz;
+        this.position.z += push;
+        if (Math.sign(this.velocity.z) !== Math.sign(push)) this.velocity.z = 0;
       }
     }
   }

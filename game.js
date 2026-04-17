@@ -77,7 +77,7 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateInput();
-  player.update(dt, input, level.mesh, cam.yaw);
+  player.update(dt, input, level, cam.yaw);
   cam.update(dt, player, input);
 
   if (player.position.y < KILL_Y) {

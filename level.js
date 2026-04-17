@@ -107,6 +107,81 @@ function buildTileGeometry(height, topIdx, sideIdx, bottomIdx) {
   return geo;
 }
 
+/**
+ * Build a BufferGeometry for a solid box occupying world space
+ * [wx0, wx1] × [wy0, wy1] × [wz0, wz1].  Every face is tiled with 1×1 unit
+ * sprites in the same atlas convention as buildTileGeometry.
+ *
+ * @param {number} wx0 @param {number} wy0 @param {number} wz0
+ * @param {number} wx1 @param {number} wy1 @param {number} wz1
+ * @param {number} topIdx @param {number} sideIdx @param {number} bottomIdx
+ * @returns {THREE.BufferGeometry}
+ */
+function buildBoxGeometry(wx0, wy0, wz0, wx1, wy1, wz1, topIdx, sideIdx, bottomIdx) {
+  const T = spriteRegion(topIdx);
+  const S = spriteRegion(sideIdx);
+  const B = spriteRegion(bottomIdx);
+
+  /** @type {number[]} */ const pos = [];
+  /** @type {number[]} */ const nor = [];
+  /** @type {number[]} */ const uv  = [];
+  /** @type {number[]} */ const ind = [];
+
+  const quad = (verts, normal, r) => {
+    const base = pos.length / 3;
+    for (const v of verts) { pos.push(...v); nor.push(...normal); }
+    uv.push(r.u0, r.v0,  r.u1, r.v0,  r.u0, r.v1,  r.u1, r.v1);
+    ind.push(base, base+1, base+2,  base+1, base+3, base+2);
+  };
+
+  const W = wx1 - wx0; // width  in world units
+  const H = wy1 - wy0; // height
+  const D = wz1 - wz0; // depth
+
+  // ── Top face (+Y at wy1) ───────────────────────────────────────────────────
+  for (let xi = 0; xi < W; xi++) for (let zi = 0; zi < D; zi++) {
+    const x = wx0+xi, z = wz0+zi;
+    quad([[x,wy1,z],[x+1,wy1,z],[x,wy1,z+1],[x+1,wy1,z+1]], [0, 1, 0], T);
+  }
+
+  // ── Bottom face (-Y at wy0) ────────────────────────────────────────────────
+  for (let xi = 0; xi < W; xi++) for (let zi = 0; zi < D; zi++) {
+    const x = wx0+xi, z = wz0+zi;
+    quad([[x,wy0,z+1],[x+1,wy0,z+1],[x,wy0,z],[x+1,wy0,z]], [0,-1, 0], B);
+  }
+
+  // ── Front face (+Z at wz1) ────────────────────────────────────────────────
+  for (let xi = 0; xi < W; xi++) for (let yi = 0; yi < H; yi++) {
+    const x = wx0+xi, y = wy0+yi;
+    quad([[x,y,wz1],[x+1,y,wz1],[x,y+1,wz1],[x+1,y+1,wz1]], [0, 0, 1], S);
+  }
+
+  // ── Back face (-Z at wz0) ─────────────────────────────────────────────────
+  for (let xi = 0; xi < W; xi++) for (let yi = 0; yi < H; yi++) {
+    const x = wx0+xi, y = wy0+yi;
+    quad([[x+1,y,wz0],[x,y,wz0],[x+1,y+1,wz0],[x,y+1,wz0]], [0, 0,-1], S);
+  }
+
+  // ── Right face (+X at wx1) ────────────────────────────────────────────────
+  for (let zi = 0; zi < D; zi++) for (let yi = 0; yi < H; yi++) {
+    const z = wz0+zi, y = wy0+yi;
+    quad([[wx1,y,z],[wx1,y,z+1],[wx1,y+1,z],[wx1,y+1,z+1]], [ 1, 0, 0], S);
+  }
+
+  // ── Left face (-X at wx0) ─────────────────────────────────────────────────
+  for (let zi = 0; zi < D; zi++) for (let yi = 0; yi < H; yi++) {
+    const z = wz0+zi, y = wy0+yi;
+    quad([[wx0,y,z+1],[wx0,y,z],[wx0,y+1,z+1],[wx0,y+1,z]], [-1, 0, 0], S);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('normal',   new THREE.BufferAttribute(new Float32Array(nor), 3));
+  geo.setAttribute('uv',       new THREE.BufferAttribute(new Float32Array(uv),  2));
+  geo.setIndex(ind);
+  return geo;
+}
+
 // ── Tile gameplay properties ───────────────────────────────────────────────────
 
 /**
@@ -140,6 +215,12 @@ export class Level {
     /** @type {Map<string, TileData>} Grid keyed "row,col". */
     this.grid = new Map();
 
+    /**
+     * Floating boxes from the level JSON.
+     * @type {{ xMin:number, xMax:number, yMin:number, yMax:number, zMin:number, zMax:number, type:string }[]}
+     */
+    this.boxes = [];
+
     /** @type {THREE.Group} */
     this.mesh = new THREE.Group();
 
@@ -156,13 +237,15 @@ export class Level {
    * @param {string}        csv
    * @param {object}        tileSprites  - The `.tiles` object from the level JSON.
    *   Shape: `{ [typeKey]: { side:number, top:number, bottom:number } }`
+   * @param {any[]}         boxes        - The `.boxes` array from the level JSON.
    * @param {THREE.Texture} texture
    * @param {THREE.Scene}   scene
    */
-  build(csv, tileSprites, texture, scene) {
+  build(csv, tileSprites, boxes, texture, scene) {
     scene.remove(this.mesh);
     this.mesh = new THREE.Group();
     this.grid.clear();
+    this.boxes = [];
 
     const rows = csv.trim().split('\n').map(r =>
       r.trim().split(',').map(c => c.trim())
@@ -197,6 +280,19 @@ export class Level {
         if (!geosByType.has(type)) geosByType.set(type, []);
         geosByType.get(type)?.push(geo);
       }
+    }
+
+    // ── Boxes ──────────────────────────────────────────────────────────────────
+    for (const b of boxes) {
+      const wx0 = b.x0,     wy0 = b.y0,     wz0 = b.z0;
+      const wx1 = b.x1 + 1, wy1 = b.y1 + 1, wz1 = b.z1 + 1;
+
+      this.boxes.push({ xMin: wx0, xMax: wx1, yMin: wy0, yMax: wy1, zMin: wz0, zMax: wz1, type: b.type });
+
+      const sp  = /** @type {any} */ (tileSprites)[b.type] ?? DEFAULT_SPRITES;
+      const geo = buildBoxGeometry(wx0, wy0, wz0, wx1, wy1, wz1, sp.top, sp.side, sp.bottom);
+      if (!geosByType.has(b.type)) geosByType.set(b.type, []);
+      geosByType.get(b.type)?.push(geo);
     }
 
     // One merged mesh per tile type — one draw call each.
@@ -235,26 +331,46 @@ export class Level {
       fetch(csvUrl).then(r => r.text()),
       fetch(jsonUrl).then(r => r.json()),
     ]);
-    this.build(csvText, levelJson.tiles ?? {}, texture, scene);
+    this.build(csvText, levelJson.tiles ?? {}, levelJson.boxes ?? [], texture, scene);
   }
 
   /**
-   * Return tile data within `radius` grid cells of world position (wx, wz).
+   * Return colliders near world position (wx, wz): grid tiles within `radius`
+   * cells, plus any boxes that overlap the search area.
+   *
+   * Each collider has explicit world-space AABB bounds.
+   *
    * @param {number} wx
    * @param {number} wz
    * @param {number} [radius=2]
+   * @returns {{ xMin:number, xMax:number, yMin:number, yMax:number, zMin:number, zMax:number, type:string }[]}
    */
   getNearbyColliders(wx, wz, radius = 2) {
     const col = Math.round(wx);
     const row = Math.round(wz);
-    /** @type {{ x:number, z:number, minY:number, maxY:number, type:string }[]} */
     const result = [];
+
+    // Grid tiles
     for (let dr = -radius; dr <= radius; dr++) {
       for (let dc = -radius; dc <= radius; dc++) {
         const tile = this.grid.get(`${row + dr},${col + dc}`);
-        if (tile) result.push({ x: col+dc, z: row+dr, minY: 0, maxY: tile.height, type: tile.type });
+        if (tile) result.push({
+          xMin: col+dc,   xMax: col+dc+1,
+          yMin: 0,        yMax: tile.height,
+          zMin: row+dr,   zMax: row+dr+1,
+          type: tile.type,
+        });
       }
     }
+
+    // Boxes — include any whose footprint overlaps the search area
+    for (const b of this.boxes) {
+      if (b.xMax > col - radius && b.xMin < col + radius + 1 &&
+          b.zMax > row - radius && b.zMin < row + radius + 1) {
+        result.push(b);
+      }
+    }
+
     return result;
   }
 }
