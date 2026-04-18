@@ -57,6 +57,12 @@ const chest  = new Chest(spritesheet);
 scene.add(player.mesh);
 scene.add(chest.mesh);
 
+// ── Game state ────────────────────────────────────────────────────────────────
+// 'title'   — title screen; level visible, player/shadow hidden, fixed camera.
+// 'playing' — normal gameplay.
+let gameState = 'title';
+const titleEl = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
+
 // ── Level management ──────────────────────────────────────────────────────────
 const MAX_LEVELS = 10;
 let currentLevel = 1;
@@ -90,6 +96,9 @@ async function loadLevel(n) {
 }
 
 // ── Initial level load ────────────────────────────────────────────────────────
+// Load the level geometry for the title screen background; player is hidden
+// until the user presses jump.
+player.mesh.visible = false;
 await loadLevel(currentLevel);
 
 // ── Shadow bake ───────────────────────────────────────────────────────────────
@@ -113,6 +122,7 @@ const playerShadow = new THREE.Mesh(_blobGeo, new THREE.MeshBasicMaterial({
   polygonOffsetUnits:  -4,
 }));
 scene.add(playerShadow);
+playerShadow.visible = false; // hidden until gameplay starts
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 initInput();
@@ -127,11 +137,37 @@ window.addEventListener('resize', () => {
 const clock  = new THREE.Clock();
 const KILL_Y = -15;
 
+// Fixed overview camera position for the title screen.
+// Positioned high and angled to frame the full 16×16 level.
+const TITLE_CAM_POS    = new THREE.Vector3(8, 26, -6);
+const TITLE_CAM_TARGET = new THREE.Vector3(8, 1, 8);
+
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateInput();
+
+  // ── Title state ────────────────────────────────────────────────────────────
+  if (gameState === 'title') {
+    cam.camera.position.copy(TITLE_CAM_POS);
+    cam.camera.lookAt(TITLE_CAM_TARGET);
+
+    if (input.jumpPressed) {
+      gameState = 'playing';
+      titleEl.style.display = 'none';
+      player.mesh.visible   = true;
+      playerShadow.visible  = true;
+      // Re-respawn so player drops cleanly onto the floor from the spawn point.
+      player.respawn(spawn.x, spawn.y, spawn.z);
+      clock.getDelta(); // discard the stalled dt from the title screen pause
+    }
+
+    renderer.render(scene, cam.camera);
+    return;
+  }
+
+  // ── Playing state ──────────────────────────────────────────────────────────
   player.update(dt, input, level, cam.yaw);
   cam.update(dt, player, input);
 

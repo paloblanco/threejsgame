@@ -51,11 +51,57 @@
       transform: translate(-50%, -50%);
       pointer-events: none;
     }
+
+    #title-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-family: sans-serif;
+      color: #fff;
+      text-shadow: 2px 3px 8px rgba(0, 0, 0, 0.9);
+    }
+
+    #title-screen h1 {
+      font-size: clamp(2.5rem, 8vw, 5rem);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.4em;
+    }
+
+    #title-screen .subtitle {
+      font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+      font-weight: 400;
+      opacity: 0.85;
+      margin: 0 0 2em;
+      letter-spacing: 0.06em;
+    }
+
+    #title-screen .prompt {
+      font-size: clamp(1rem, 3vw, 1.5rem);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      animation: titleBlink 1.3s ease-in-out infinite;
+    }
+
+    @keyframes titleBlink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
   </style>
 </head>
 <body>
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
   <div id="jump-btn">▲</div>
+
+  <div id="title-screen">
+    <h1>Signal Game</h1>
+    <p class="subtitle">Palo Blanco Games 2026 &mdash; LD59</p>
+    <p class="prompt">Press Jump to Begin</p>
+  </div>
 
   <script type="importmap">
   {
