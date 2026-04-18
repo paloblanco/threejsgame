@@ -91,7 +91,7 @@ let levelCompleteTimer = 0;
 const TRANSITION_SECS = 0.5;
 
 const transitionOverlay = /** @type {HTMLElement} */ (document.getElementById('transition-overlay'));
-/** @type {'none'|'closing'|'opening'} */
+/** @type {'none'|'closing'|'closed'|'opening'} */
 let transitionPhase = 'none';
 let transitionTimer = 0;
 /** @type {(() => void)|null} */
@@ -126,6 +126,12 @@ function updateTransition(dt) {
     setIrisRadius((1 - t) * transitionMaxRadius);
     if (t >= 1) {
       if (transitionCallback) { transitionCallback(); transitionCallback = null; }
+      transitionPhase = 'closed';
+      transitionTimer = 0;
+    }
+  } else if (transitionPhase === 'closed') {
+    setIrisRadius(0);
+    if (!levelLoading) {
       transitionPhase = 'opening';
       transitionTimer = 0;
     }
