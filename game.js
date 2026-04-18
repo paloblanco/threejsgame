@@ -254,11 +254,27 @@ function exitPause() {
   hudEl.style.display = 'block';
 }
 
-pauseBtnEl.addEventListener('click', () => {
+/**
+ * Wire a button for both mouse (click) and touch (touchstart).
+ * stopPropagation prevents the global touchstart handler in input.js from
+ * calling preventDefault, which would swallow the synthetic click event.
+ * @param {HTMLElement|null} el @param {() => void} fn
+ */
+function addTapHandler(el, fn) {
+  if (!el) return;
+  el.addEventListener('click', fn);
+  el.addEventListener('touchstart', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    fn();
+  }, { passive: false });
+}
+
+addTapHandler(pauseBtnEl, () => {
   if (gameState === 'playing' && transitionPhase === 'none') enterPause();
 });
-document.getElementById('pause-resume-btn')?.addEventListener('click', exitPause);
-document.getElementById('pause-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
+addTapHandler(document.getElementById('pause-resume-btn'), exitPause);
+addTapHandler(document.getElementById('pause-fullscreen-btn'), toggleFullscreen);
 
 window.addEventListener('keydown', e => {
   if (e.code !== 'Escape') return;
