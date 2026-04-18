@@ -31,10 +31,6 @@ function spriteRegion(index) {
  * (non-shared) vertices at each sprite boundary so each quad can carry its
  * own UV range independently.
  *
- * The material should use THREE.DoubleSide to avoid needing to worry about
- * vertex winding order, which is consistent with no back-face culling in a
- * world where the camera can look at any face.
- *
  * @param {number} height
  * @param {number} topIdx
  * @param {number} sideIdx
@@ -59,28 +55,34 @@ function buildTileGeometry(height, topIdx, sideIdx, bottomIdx) {
    * @param {[number,number,number]} normal
    * @param {{ u0:number, u1:number, v0:number, v1:number }} r
    */
-  const quad = (verts, normal, r) => {
+  /**
+   * flip=true reverses triangle winding so the geometric normal matches the
+   * stored buffer normal (required for gl_FrontFacing to agree with the normal
+   * attribute and for lighting to work with FrontSide rendering).
+   */
+  const quad = (verts, normal, r, flip = false) => {
     const base = pos.length / 3;
     for (const v of verts) { pos.push(...v); nor.push(...normal); }
     //  BL        BR        TL        TR
     uv.push(r.u0, r.v0,  r.u1, r.v0,  r.u0, r.v1,  r.u1, r.v1);
-    // tri 1: BL→BR→TL   tri 2: BR→TR→TL
-    ind.push(base, base+1, base+2,  base+1, base+3, base+2);
+    if (flip) {
+      // Reversed winding: BL→TL→BR, TL→TR→BR
+      ind.push(base, base+2, base+1,  base+1, base+2, base+3);
+    } else {
+      // Default winding: BL→BR→TL, BR→TR→TL
+      ind.push(base, base+1, base+2,  base+1, base+3, base+2);
+    }
   };
 
   const h = height;
 
   // ── Top face (+Y) ──────────────────────────────────────────────────────────
-  quad(
-    [[0,h,0],[1,h,0],[0,h,1],[1,h,1]],
-    [0, 1, 0], T,
-  );
+  // flip=true: winding produces (0,+1,0) to match stored normal
+  quad([[0,h,0],[1,h,0],[0,h,1],[1,h,1]], [0, 1, 0], T, true);
 
   // ── Bottom face (-Y) ───────────────────────────────────────────────────────
-  quad(
-    [[0,0,1],[1,0,1],[0,0,0],[1,0,0]],
-    [0,-1, 0], B,
-  );
+  // flip=true: winding produces (0,-1,0) to match stored normal
+  quad([[0,0,1],[1,0,1],[0,0,0],[1,0,0]], [0,-1, 0], B, true);
 
   // ── Side faces: one quad per unit of height ────────────────────────────────
   // Each iteration produces one sprite-height strip on all four sides.
@@ -89,14 +91,14 @@ function buildTileGeometry(height, topIdx, sideIdx, bottomIdx) {
   for (let k = 0; k < h; k++) {
     const y0 = k, y1 = k + 1;
 
-    // Front (+Z)
-    quad([[0,y0,1],[1,y0,1],[0,y1,1],[1,y1,1]],  [0,0, 1], S);
-    // Back (-Z)
-    quad([[1,y0,0],[0,y0,0],[1,y1,0],[0,y1,0]],  [0,0,-1], S);
-    // Right (+X)
-    quad([[1,y0,0],[1,y0,1],[1,y1,0],[1,y1,1]],  [1,0, 0], S);
-    // Left (-X)
-    quad([[0,y0,1],[0,y0,0],[0,y1,1],[0,y1,0]], [-1,0, 0], S);
+    // Front (+Z) — default winding produces (0,0,+1) ✓
+    quad([[0,y0,1],[1,y0,1],[0,y1,1],[1,y1,1]], [0,0, 1], S);
+    // Back (-Z) — default winding produces (0,0,-1) ✓
+    quad([[1,y0,0],[0,y0,0],[1,y1,0],[0,y1,0]], [0,0,-1], S);
+    // Right (+X) — flip=true: winding produces (+1,0,0) ✓
+    quad([[1,y0,0],[1,y0,1],[1,y1,0],[1,y1,1]], [ 1,0, 0], S, true);
+    // Left (-X) — flip=true: winding produces (-1,0,0) ✓
+    quad([[0,y0,1],[0,y0,0],[0,y1,1],[0,y1,0]], [-1,0, 0], S, true);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -127,11 +129,15 @@ function buildBoxGeometry(wx0, wy0, wz0, wx1, wy1, wz1, topIdx, sideIdx, bottomI
   /** @type {number[]} */ const uv  = [];
   /** @type {number[]} */ const ind = [];
 
-  const quad = (verts, normal, r) => {
+  const quad = (verts, normal, r, flip = false) => {
     const base = pos.length / 3;
     for (const v of verts) { pos.push(...v); nor.push(...normal); }
     uv.push(r.u0, r.v0,  r.u1, r.v0,  r.u0, r.v1,  r.u1, r.v1);
-    ind.push(base, base+1, base+2,  base+1, base+3, base+2);
+    if (flip) {
+      ind.push(base, base+2, base+1,  base+1, base+2, base+3);
+    } else {
+      ind.push(base, base+1, base+2,  base+1, base+3, base+2);
+    }
   };
 
   const W = wx1 - wx0; // width  in world units
@@ -141,13 +147,13 @@ function buildBoxGeometry(wx0, wy0, wz0, wx1, wy1, wz1, topIdx, sideIdx, bottomI
   // ── Top face (+Y at wy1) ───────────────────────────────────────────────────
   for (let xi = 0; xi < W; xi++) for (let zi = 0; zi < D; zi++) {
     const x = wx0+xi, z = wz0+zi;
-    quad([[x,wy1,z],[x+1,wy1,z],[x,wy1,z+1],[x+1,wy1,z+1]], [0, 1, 0], T);
+    quad([[x,wy1,z],[x+1,wy1,z],[x,wy1,z+1],[x+1,wy1,z+1]], [0, 1, 0], T, true);
   }
 
   // ── Bottom face (-Y at wy0) ────────────────────────────────────────────────
   for (let xi = 0; xi < W; xi++) for (let zi = 0; zi < D; zi++) {
     const x = wx0+xi, z = wz0+zi;
-    quad([[x,wy0,z+1],[x+1,wy0,z+1],[x,wy0,z],[x+1,wy0,z]], [0,-1, 0], B);
+    quad([[x,wy0,z+1],[x+1,wy0,z+1],[x,wy0,z],[x+1,wy0,z]], [0,-1, 0], B, true);
   }
 
   // ── Front face (+Z at wz1) ────────────────────────────────────────────────
@@ -165,13 +171,13 @@ function buildBoxGeometry(wx0, wy0, wz0, wx1, wy1, wz1, topIdx, sideIdx, bottomI
   // ── Right face (+X at wx1) ────────────────────────────────────────────────
   for (let zi = 0; zi < D; zi++) for (let yi = 0; yi < H; yi++) {
     const z = wz0+zi, y = wy0+yi;
-    quad([[wx1,y,z],[wx1,y,z+1],[wx1,y+1,z],[wx1,y+1,z+1]], [ 1, 0, 0], S);
+    quad([[wx1,y,z],[wx1,y,z+1],[wx1,y+1,z],[wx1,y+1,z+1]], [ 1, 0, 0], S, true);
   }
 
   // ── Left face (-X at wx0) ─────────────────────────────────────────────────
   for (let zi = 0; zi < D; zi++) for (let yi = 0; yi < H; yi++) {
     const z = wz0+zi, y = wy0+yi;
-    quad([[wx0,y,z+1],[wx0,y,z],[wx0,y+1,z+1],[wx0,y+1,z]], [-1, 0, 0], S);
+    quad([[wx0,y,z+1],[wx0,y,z],[wx0,y+1,z+1],[wx0,y+1,z]], [-1, 0, 0], S, true);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -296,21 +302,18 @@ export class Level {
     }
 
     // One merged mesh per tile type — one draw call each.
-    // DoubleSide avoids needing correct vertex winding; explicit normals
-    // in buildTileGeometry() drive lighting correctly from either side.
     for (const [type, geos] of geosByType) {
       const merged = mergeGeometries(geos, false);
       if (!merged) continue;
 
       const mat = new THREE.MeshLambertMaterial({
-        map:         texture,
-        color:       0xffffff,
-        transparent: true,
-        alphaTest:   0.1,
-        side:        THREE.DoubleSide,
+        map:       texture,
+        color:     0xffffff,
+        alphaTest: 0.1,
       });
 
       const mesh = new THREE.Mesh(merged, mat);
+      mesh.castShadow    = true;
       mesh.receiveShadow = true;
       mesh.userData.tileType = type; // read by raycaster in player.js
       this.mesh.add(mesh);

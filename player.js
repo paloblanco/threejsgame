@@ -160,16 +160,18 @@ export class Player {
       const oz = Math.min(this.position.z + PW, t.zMax) - Math.max(this.position.z - PW, t.zMin);
       if (ox <= 0 || oz <= 0) continue;
 
-      const tileCY = (t.yMin + t.yMax) * 0.5;
-      const feetY  = this.position.y - PH;
-      const headY  = this.position.y + PH;
+      const feetY = this.position.y - PH;
+      const headY = this.position.y + PH;
 
-      // Ground: player centre above tile centre, feet near or below tile top
-      if (this.position.y > tileCY && feetY >= t.yMax - GROUND_SNAP && feetY <= t.yMax + 0.05) {
+      // Ground: player centre above tile centre, feet near or just below tile top.
+      if (this.position.y > (t.yMin + t.yMax) * 0.5 && feetY >= t.yMax - GROUND_SNAP && feetY <= t.yMax + 0.05) {
         if (t.yMax > groundY) { groundY = t.yMax; groundType = t.type; }
       }
-      // Ceiling: player centre at or below tile centre, head inside tile
-      if (this.position.y <= tileCY && headY > t.yMin) {
+      // Ceiling: tile starts above player's feet AND the vertical penetration
+      // (headY - yMin) is the smallest axis, meaning this is a bottom-face
+      // contact and not a side contact the XZ pass should handle.
+      const headPen = headY - t.yMin;
+      if (feetY < t.yMin && headPen > 0 && headPen < ox && headPen < oz) {
         if (t.yMin < ceilY) ceilY = t.yMin;
       }
     }
@@ -187,23 +189,37 @@ export class Player {
       this.velocity.y = 0;
     }
 
-    // ── Pass 2: XZ (horizontal) ─────────────────────────────────────────────────
-    for (const t of colliders) {
-      const oy = Math.min(this.position.y + PH, t.yMax) - Math.max(this.position.y - PH, t.yMin);
-      if (oy <= 0) continue;
+    // ── Pass 2: XZ (horizontal) — 3 iterations to resolve corners ───────────────
+    // Push direction is determined by velocity rather than tile-centre comparison.
+    // The centre comparison fails when the player crosses a tile's midpoint while
+    // airborne above it (oy=0 so no XZ collision that frame): when they land the
+    // centre test picks the wrong side and launches them through the wall.
+    // Using velocity gives the correct "which side did I come from" answer and
+    // also handles multi-tile walls where the player can drift past tile centres.
+    // Fallback to centre comparison only when velocity on that axis is ~zero
+    // (player was pushed to rest against the wall in a previous iteration).
+    for (let iter = 0; iter < 3; iter++) {
+      for (const t of colliders) {
+        const oy = Math.min(this.position.y + PH, t.yMax) - Math.max(this.position.y - PH, t.yMin);
+        if (oy <= 0) continue;
 
-      const ox = Math.min(this.position.x + PW, t.xMax) - Math.max(this.position.x - PW, t.xMin);
-      const oz = Math.min(this.position.z + PW, t.zMax) - Math.max(this.position.z - PW, t.zMin);
-      if (ox <= 0 || oz <= 0) continue;
+        const ox = Math.min(this.position.x + PW, t.xMax) - Math.max(this.position.x - PW, t.xMin);
+        const oz = Math.min(this.position.z + PW, t.zMax) - Math.max(this.position.z - PW, t.zMin);
+        if (ox <= 0 || oz <= 0) continue;
 
-      if (ox <= oz) {
-        const push = this.position.x > (t.xMin + t.xMax) * 0.5 ? ox : -ox;
-        this.position.x += push;
-        if (Math.sign(this.velocity.x) !== Math.sign(push)) this.velocity.x = 0;
-      } else {
-        const push = this.position.z > (t.zMin + t.zMax) * 0.5 ? oz : -oz;
-        this.position.z += push;
-        if (Math.sign(this.velocity.z) !== Math.sign(push)) this.velocity.z = 0;
+        if (ox <= oz) {
+          const push = this.velocity.x >  0.001 ? -ox
+                     : this.velocity.x < -0.001 ?  ox
+                     : this.position.x > (t.xMin + t.xMax) * 0.5 ? ox : -ox;
+          this.position.x += push;
+          if (Math.sign(this.velocity.x) !== Math.sign(push)) this.velocity.x = 0;
+        } else {
+          const push = this.velocity.z >  0.001 ? -oz
+                     : this.velocity.z < -0.001 ?  oz
+                     : this.position.z > (t.zMin + t.zMax) * 0.5 ? oz : -oz;
+          this.position.z += push;
+          if (Math.sign(this.velocity.z) !== Math.sign(push)) this.velocity.z = 0;
+        }
       }
     }
   }
