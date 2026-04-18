@@ -68,6 +68,10 @@ const hudStatsEl    = /** @type {HTMLElement} */ (document.getElementById('hud-s
 const finishEl      = /** @type {HTMLElement} */ (document.getElementById('finish-screen'));
 const finishTimeEl  = /** @type {HTMLElement} */ (document.getElementById('finish-time'));
 const finishDeathEl = /** @type {HTMLElement} */ (document.getElementById('finish-deaths'));
+const levelCompleteEl     = /** @type {HTMLElement} */ (document.getElementById('levelcomplete-screen'));
+const lcLevelTimeEl       = /** @type {HTMLElement} */ (document.getElementById('lc-level-time'));
+const lcDeathsEl          = /** @type {HTMLElement} */ (document.getElementById('lc-deaths'));
+const lcTotalTimeEl       = /** @type {HTMLElement} */ (document.getElementById('lc-total-time'));
 
 // Stats tracked across a full run (reset when starting a new game).
 let totalDeaths   = 0;
@@ -76,6 +80,9 @@ let gameStartTime = 0; // Date.now() when playing begins
 // Per-level stats — reset on each new level load and on death.
 let levelDeaths = 0;
 let levelTimer  = 0; // seconds since last respawn on this level
+
+// Seconds the level-complete overlay has been visible (gate for jump input).
+let levelCompleteTimer = 0;
 
 /** @param {number} totalSeconds */
 function formatTime(totalSeconds) {
@@ -216,6 +223,35 @@ function loop() {
     return;
   }
 
+  // ── Level-complete state ───────────────────────────────────────────────────
+  if (gameState === 'levelcomplete') {
+    levelCompleteTimer += dt;
+    cam.update(dt, player, input); // camera keeps drifting for a nice feel
+
+    if (levelCompleteTimer >= 0.5 && input.jumpPressed) {
+      levelCompleteEl.style.display = 'none';
+      if (currentLevel >= MAX_LEVELS) {
+        // All levels done — hand off to finish screen.
+        const elapsed = (Date.now() - gameStartTime) / 1000;
+        finishTimeEl.textContent  = `Time: ${formatTime(elapsed)}`;
+        finishDeathEl.textContent = `Deaths: ${totalDeaths}`;
+        finishEl.style.display    = 'flex';
+        player.mesh.visible       = false;
+        playerShadow.visible      = false;
+        hudEl.style.display       = 'none';
+        gameState = 'finish';
+      } else {
+        currentLevel++;
+        loadLevel(currentLevel);
+        hudEl.style.display = 'block';
+        gameState = 'playing';
+      }
+    }
+
+    renderer.render(scene, cam.camera);
+    return;
+  }
+
   // ── Playing state ──────────────────────────────────────────────────────────
   levelTimer += dt;
   hudStatsEl.textContent = `${formatTime(levelTimer)}  ·  ${levelDeaths} death${levelDeaths !== 1 ? 's' : ''}`;
@@ -230,22 +266,15 @@ function loop() {
     player.respawn(spawn.x, spawn.y, spawn.z);
   }
 
-  // Advance to the next level when the player reaches the chest.
+  // When the player reaches the chest, show the level-complete overlay.
   if (!levelLoading && chest.isTriggered(player.position)) {
-    if (currentLevel >= MAX_LEVELS) {
-      // All levels complete — show finish screen.
-      const elapsed = (Date.now() - gameStartTime) / 1000;
-      finishTimeEl.textContent  = `Time: ${formatTime(elapsed)}`;
-      finishDeathEl.textContent = `Deaths: ${totalDeaths}`;
-      finishEl.style.display    = 'flex';
-      player.mesh.visible       = false;
-      playerShadow.visible      = false;
-      hudEl.style.display       = 'none';
-      gameState = 'finish';
-    } else {
-      currentLevel++;
-      loadLevel(currentLevel);
-    }
+    lcLevelTimeEl.textContent = `Level time: ${formatTime(levelTimer)}`;
+    lcDeathsEl.textContent    = `Deaths: ${levelDeaths}`;
+    lcTotalTimeEl.textContent = `Total time: ${formatTime((Date.now() - gameStartTime) / 1000)}`;
+    levelCompleteEl.style.display = 'flex';
+    hudEl.style.display = 'none';
+    levelCompleteTimer = 0;
+    gameState = 'levelcomplete';
   }
 
   // Project blob shadow onto the nearest surface below the player.

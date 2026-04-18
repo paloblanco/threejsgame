@@ -124,6 +124,36 @@
       animation: titleBlink 1.3s ease-in-out infinite;
     }
 
+    #levelcomplete-screen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      font-family: sans-serif;
+      color: #fff;
+      text-shadow: 1px 2px 6px rgba(0, 0, 0, 0.9);
+    }
+
+    #levelcomplete-screen h2 {
+      font-size: clamp(2rem, 7vw, 4rem);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.5em;
+    }
+
+    #levelcomplete-screen .stats {
+      font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+      font-weight: 400;
+      opacity: 0.9;
+      line-height: 1.9;
+      text-align: center;
+      margin: 0 0 1.6em;
+    }
+
     #finish-screen {
       position: fixed;
       inset: 0;
@@ -167,6 +197,16 @@
     <h1>Signal Game</h1>
     <p class="subtitle">Palo Blanco Games 2026 &mdash; LD59</p>
     <p class="prompt screen-prompt">Press Jump to Begin</p>
+  </div>
+
+  <div id="levelcomplete-screen">
+    <h2>Good Job!</h2>
+    <div class="stats">
+      <p id="lc-level-time"></p>
+      <p id="lc-deaths"></p>
+      <p id="lc-total-time"></p>
+    </div>
+    <p class="screen-prompt">Press Jump to Continue</p>
   </div>
 
   <div id="finish-screen">
