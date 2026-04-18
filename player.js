@@ -56,7 +56,8 @@ export class Player {
     this.sprites = {
       front: [238, 240, 239, 240, 239],
       back:  [253, 255, 254, 255, 254],
-      right: [246, 248, 247,249,247],
+      right: [246, 248, 247, 249, 247],
+      dead:  [241, 242, 243, 242],   // placeholder — replace with real death-anim indices
     };
 
     /** Current camera-relative direction. @type {'front'|'back'|'right'} */
@@ -312,6 +313,26 @@ export class Player {
     );
   }
 
+  /** Begin the death sprite sequence (call once on death). */
+  startDeath() {
+    this._walkFrame = 0;
+    this._walkTimer = 0;
+  }
+
+  /**
+   * Advance the death sprite animation only — no physics.
+   * @param {number} dt
+   */
+  updateDead(dt) {
+    this._walkTimer += dt;
+    if (this._walkTimer >= WALK_FRAME_SECS) {
+      this._walkTimer = 0;
+      this._walkFrame = (this._walkFrame + 1) % this.sprites.dead.length;
+    }
+    this._applySpriteIndex(this.sprites.dead[this._walkFrame], false);
+    this._syncMesh();
+  }
+
   /**
    * Teleport player; y is feet level.
    * @param {number} x @param {number} y @param {number} z
@@ -319,6 +340,8 @@ export class Player {
   respawn(x, y, z) {
     this.position.set(x, y + PH, z);
     this.velocity.set(0, 0, 0);
-    this.onGround = false;
+    this.onGround  = false;
+    this._walkFrame = 0;
+    this._walkTimer = 0;
   }
 }

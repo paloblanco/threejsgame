@@ -87,6 +87,10 @@ let levelTimer  = 0; // seconds since last respawn on this level
 // Seconds the level-complete overlay has been visible (gate for jump input).
 let levelCompleteTimer = 0;
 
+/** Duration of the death animation before the iris transition fires, in seconds. */
+const DEATH_ANIM_SECS = 0.5;
+let dyingTimer = 0;
+
 // ── Iris-wipe transition ───────────────────────────────────────────────────────
 /** Duration of each transition half (close or open), in seconds. Change freely. */
 const TRANSITION_SECS = 0.5;
@@ -326,6 +330,20 @@ function loop() {
     return;
   }
 
+  // ── Dying state ────────────────────────────────────────────────────────────
+  if (gameState === 'dying') {
+    dyingTimer += dt;
+    player.updateDead(dt);
+    if (transitionPhase === 'none' && dyingTimer >= DEATH_ANIM_SECS) {
+      startTransition(() => {
+        player.respawn(spawn.x, spawn.y, spawn.z);
+        gameState = 'playing';
+      });
+    }
+    renderer.render(scene, cam.camera);
+    return;
+  }
+
   // ── Playing state ──────────────────────────────────────────────────────────
   levelTimer += dt;
   hudStatsEl.textContent = `${formatTime(levelTimer)}  ·  ${levelDeaths} death${levelDeaths !== 1 ? 's' : ''}`;
@@ -338,7 +356,9 @@ function loop() {
     levelDeaths++;
     levelTimer = 0;
     playSound(2); // death
-    player.respawn(spawn.x, spawn.y, spawn.z);
+    player.startDeath();
+    dyingTimer = 0;
+    gameState = 'dying';
   }
 
   // When the player reaches the chest, show the level-complete overlay.
