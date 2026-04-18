@@ -1,6 +1,7 @@
 // @ts-check
 import * as THREE from 'three';
 import { TILE_TYPES } from './level.js';
+import { playSound } from './sound.js';
 
 /** @typedef {import('./input.js').InputState} InputState */
 
@@ -129,6 +130,7 @@ export class Player {
       this.velocity.y   = JUMP_SPEED;
       this.onGround     = false;
       this._squashTimer = -0.18;
+      playSound(0); // jump
     }
   }
 

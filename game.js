@@ -5,6 +5,7 @@ import { Player }     from './player.js';
 import { GameCamera } from './camera.js';
 import { initInput, updateInput, input } from './input.js';
 import { Chest }      from './chest.js';
+import { loadSounds, playSound } from './sound.js';
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -189,6 +190,10 @@ async function loadLevel(n) {
   levelLoading = false;
 }
 
+// ── Sounds ────────────────────────────────────────────────────────────────────
+// 0 = jump  1 = chest  2 = death  (files under assets/sounds/)
+await loadSounds(3);
+
 // ── Initial level load ────────────────────────────────────────────────────────
 // Load the level geometry for the title screen background; player is hidden
 // until the user presses jump.
@@ -332,11 +337,13 @@ function loop() {
     totalDeaths++;
     levelDeaths++;
     levelTimer = 0;
+    playSound(2); // death
     player.respawn(spawn.x, spawn.y, spawn.z);
   }
 
   // When the player reaches the chest, show the level-complete overlay.
   if (!levelLoading && chest.isTriggered(player.position)) {
+    playSound(1); // chest
     lcLevelTimeEl.textContent = `Level time: ${formatTime(levelTimer)}`;
     lcDeathsEl.textContent    = `Deaths: ${levelDeaths}`;
     lcTotalTimeEl.textContent = `Total time: ${formatTime((Date.now() - gameStartTime) / 1000)}`;
