@@ -61,8 +61,22 @@ scene.add(chest.mesh);
 // 'title'   — title screen; level visible, player/shadow hidden, fixed camera.
 // 'playing' — normal gameplay.
 let gameState = 'title';
-const titleEl = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
-const hudEl   = /** @type {HTMLElement} */ (document.getElementById('hud'));
+const titleEl       = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
+const hudEl         = /** @type {HTMLElement} */ (document.getElementById('hud'));
+const finishEl      = /** @type {HTMLElement} */ (document.getElementById('finish-screen'));
+const finishTimeEl  = /** @type {HTMLElement} */ (document.getElementById('finish-time'));
+const finishDeathEl = /** @type {HTMLElement} */ (document.getElementById('finish-deaths'));
+
+// Stats tracked across a full run (reset when starting a new game).
+let totalDeaths    = 0;
+let gameStartTime  = 0; // Date.now() when playing begins
+
+/** @param {number} totalSeconds */
+function formatTime(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 // ── Level management ──────────────────────────────────────────────────────────
 const MAX_LEVELS = 10;
@@ -161,9 +175,33 @@ function loop() {
       hudEl.style.display   = 'block';
       player.mesh.visible   = true;
       playerShadow.visible  = true;
+      totalDeaths   = 0;
+      gameStartTime = Date.now();
       // Re-respawn so player drops cleanly onto the floor from the spawn point.
       player.respawn(spawn.x, spawn.y, spawn.z);
       clock.getDelta(); // discard the stalled dt from the title screen pause
+    }
+
+    renderer.render(scene, cam.camera);
+    return;
+  }
+
+  // ── Finish state ───────────────────────────────────────────────────────────
+  if (gameState === 'finish') {
+    cam.camera.position.copy(TITLE_CAM_POS);
+    cam.camera.lookAt(TITLE_CAM_TARGET);
+
+    if (!levelLoading && input.jumpPressed) {
+      finishEl.style.display = 'none';
+      hudEl.style.display    = 'block';
+      player.mesh.visible    = true;
+      playerShadow.visible   = true;
+      totalDeaths   = 0;
+      gameStartTime = Date.now();
+      currentLevel  = 1;
+      gameState     = 'playing';
+      loadLevel(1);
+      clock.getDelta();
     }
 
     renderer.render(scene, cam.camera);
@@ -175,13 +213,26 @@ function loop() {
   cam.update(dt, player, input);
 
   if (player.position.y < KILL_Y) {
+    totalDeaths++;
     player.respawn(spawn.x, spawn.y, spawn.z);
   }
 
   // Advance to the next level when the player reaches the chest.
   if (!levelLoading && chest.isTriggered(player.position)) {
-    currentLevel = currentLevel < MAX_LEVELS ? currentLevel + 1 : 1;
-    loadLevel(currentLevel);
+    if (currentLevel >= MAX_LEVELS) {
+      // All levels complete — show finish screen.
+      const elapsed = (Date.now() - gameStartTime) / 1000;
+      finishTimeEl.textContent  = `Time: ${formatTime(elapsed)}`;
+      finishDeathEl.textContent = `Deaths: ${totalDeaths}`;
+      finishEl.style.display    = 'flex';
+      player.mesh.visible       = false;
+      playerShadow.visible      = false;
+      hudEl.style.display       = 'none';
+      gameState = 'finish';
+    } else {
+      currentLevel++;
+      loadLevel(currentLevel);
+    }
   }
 
   // Project blob shadow onto the nearest surface below the player.
