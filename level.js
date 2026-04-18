@@ -227,6 +227,12 @@ export class Level {
      */
     this.boxes = [];
 
+    /**
+     * Spawn/goal objects from the level JSON "objects" array.
+     * @type {{ type:string, x:number, y:number, z:number }[]}
+     */
+    this.objects = [];
+
     /** @type {THREE.Group} */
     this.mesh = new THREE.Group();
 
@@ -335,6 +341,7 @@ export class Level {
       fetch(jsonUrl).then(r => r.json()),
     ]);
     this.build(csvText, levelJson.tiles ?? {}, levelJson.boxes ?? [], texture, scene);
+    this.objects = levelJson.objects ?? [];
   }
 
   /**

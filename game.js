@@ -4,6 +4,7 @@ import { Level }      from './level.js';
 import { Player }     from './player.js';
 import { GameCamera } from './camera.js';
 import { initInput, updateInput, input } from './input.js';
+import { Chest }      from './chest.js';
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -51,18 +52,45 @@ spritesheet.colorSpace = THREE.SRGBColorSpace;
 const level  = new Level();
 const player = new Player(spritesheet);
 const cam    = new GameCamera();
+const chest  = new Chest(spritesheet);
 
 scene.add(player.mesh);
+scene.add(chest.mesh);
 
-// ── Load level ────────────────────────────────────────────────────────────────
-await level.load(
-  './assets/levels/level1.csv',
-  './assets/levels/level1.json',
-  spritesheet,
-  scene,
-);
+// ── Level management ──────────────────────────────────────────────────────────
+const MAX_LEVELS = 10;
+let currentLevel = 1;
+let levelLoading = false;
+// Respawn point for the current level (updated on each load).
+const spawn = new THREE.Vector3(2.5, 6, 2.5);
 
-player.respawn(2, 10, 2);
+/**
+ * Load level n, position the player and chest from the objects array.
+ * @param {number} n
+ */
+async function loadLevel(n) {
+  levelLoading = true;
+  await level.load(
+    `./assets/levels/level${n}.csv`,
+    `./assets/levels/level${n}.json`,
+    spritesheet,
+    scene,
+  );
+
+  const objects   = level.objects;
+  const playerObj = objects.find(o => o.type === 'player') ?? { x: 2.5, y: 1, z: 2.5 };
+  const chestObj  = objects.find(o => o.type === 'chest')  ?? { x: 7.5, y: 1, z: 7.5 };
+
+  // Spawn player a few units above the floor so they fall into place.
+  spawn.set(playerObj.x, playerObj.y + 5, playerObj.z);
+  player.respawn(spawn.x, spawn.y, spawn.z);
+  chest.place(chestObj.x, chestObj.y, chestObj.z);
+
+  levelLoading = false;
+}
+
+// ── Initial level load ────────────────────────────────────────────────────────
+await loadLevel(currentLevel);
 
 // ── Shadow bake ───────────────────────────────────────────────────────────────
 // Level geometry is static; compute the shadow map once on the first frame and
@@ -97,7 +125,6 @@ window.addEventListener('resize', () => {
 
 // ── Game loop ─────────────────────────────────────────────────────────────────
 const clock  = new THREE.Clock();
-const SPAWN  = new THREE.Vector3(2, 10, 2);
 const KILL_Y = -15;
 
 function loop() {
@@ -109,7 +136,13 @@ function loop() {
   cam.update(dt, player, input);
 
   if (player.position.y < KILL_Y) {
-    player.respawn(SPAWN.x, SPAWN.y, SPAWN.z);
+    player.respawn(spawn.x, spawn.y, spawn.z);
+  }
+
+  // Advance to the next level when the player reaches the chest.
+  if (!levelLoading && chest.isTriggered(player.position)) {
+    currentLevel = currentLevel < MAX_LEVELS ? currentLevel + 1 : 1;
+    loadLevel(currentLevel);
   }
 
   // Project blob shadow onto the nearest surface below the player.
