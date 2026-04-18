@@ -182,6 +182,15 @@
       text-align: center;
       margin: 0 0 1.8em;
     }
+
+    /* Iris-wipe transition overlay — sits above every other element. */
+    #transition-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      /* JS sets background each frame; start fully transparent. */
+    }
   </style>
 </head>
 <body>
@@ -217,6 +226,8 @@
     </div>
     <p class="screen-prompt">Press Jump to Play Again</p>
   </div>
+
+  <div id="transition-overlay"></div>
 
   <script type="importmap">
   {

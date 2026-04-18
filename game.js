@@ -58,20 +58,22 @@ scene.add(player.mesh);
 scene.add(chest.mesh);
 
 // ── Game state ────────────────────────────────────────────────────────────────
-// 'title'   — title screen; level visible, player/shadow hidden, fixed camera.
-// 'playing' — normal gameplay.
+// 'title'         — title screen; level visible, player/shadow hidden, fixed camera.
+// 'playing'       — normal gameplay.
+// 'levelcomplete' — between levels; player frozen, overlay visible.
+// 'finish'        — all levels done.
 let gameState = 'title';
-const titleEl       = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
-const hudEl         = /** @type {HTMLElement} */ (document.getElementById('hud'));
-const hudLevelEl    = /** @type {HTMLElement} */ (document.getElementById('hud-level'));
-const hudStatsEl    = /** @type {HTMLElement} */ (document.getElementById('hud-stats'));
-const finishEl      = /** @type {HTMLElement} */ (document.getElementById('finish-screen'));
-const finishTimeEl  = /** @type {HTMLElement} */ (document.getElementById('finish-time'));
-const finishDeathEl = /** @type {HTMLElement} */ (document.getElementById('finish-deaths'));
-const levelCompleteEl     = /** @type {HTMLElement} */ (document.getElementById('levelcomplete-screen'));
-const lcLevelTimeEl       = /** @type {HTMLElement} */ (document.getElementById('lc-level-time'));
-const lcDeathsEl          = /** @type {HTMLElement} */ (document.getElementById('lc-deaths'));
-const lcTotalTimeEl       = /** @type {HTMLElement} */ (document.getElementById('lc-total-time'));
+const titleEl         = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
+const hudEl           = /** @type {HTMLElement} */ (document.getElementById('hud'));
+const hudLevelEl      = /** @type {HTMLElement} */ (document.getElementById('hud-level'));
+const hudStatsEl      = /** @type {HTMLElement} */ (document.getElementById('hud-stats'));
+const finishEl        = /** @type {HTMLElement} */ (document.getElementById('finish-screen'));
+const finishTimeEl    = /** @type {HTMLElement} */ (document.getElementById('finish-time'));
+const finishDeathEl   = /** @type {HTMLElement} */ (document.getElementById('finish-deaths'));
+const levelCompleteEl = /** @type {HTMLElement} */ (document.getElementById('levelcomplete-screen'));
+const lcLevelTimeEl   = /** @type {HTMLElement} */ (document.getElementById('lc-level-time'));
+const lcDeathsEl      = /** @type {HTMLElement} */ (document.getElementById('lc-deaths'));
+const lcTotalTimeEl   = /** @type {HTMLElement} */ (document.getElementById('lc-total-time'));
 
 // Stats tracked across a full run (reset when starting a new game).
 let totalDeaths   = 0;
@@ -83,6 +85,61 @@ let levelTimer  = 0; // seconds since last respawn on this level
 
 // Seconds the level-complete overlay has been visible (gate for jump input).
 let levelCompleteTimer = 0;
+
+// ── Iris-wipe transition ───────────────────────────────────────────────────────
+/** Duration of each transition half (close or open), in seconds. Change freely. */
+const TRANSITION_SECS = 0.5;
+
+const transitionOverlay = /** @type {HTMLElement} */ (document.getElementById('transition-overlay'));
+/** @type {'none'|'closing'|'opening'} */
+let transitionPhase = 'none';
+let transitionTimer = 0;
+/** @type {(() => void)|null} */
+let transitionCallback = null;
+let transitionMaxRadius = Math.hypot(window.innerWidth, window.innerHeight);
+
+/**
+ * Set the iris radius.  0 = fully black screen; transitionMaxRadius = fully clear.
+ * @param {number} r
+ */
+function setIrisRadius(r) {
+  transitionOverlay.style.background =
+    `radial-gradient(circle at 50% 50%, transparent ${r}px, black ${r + 1}px)`;
+}
+
+/**
+ * Start an iris-close → execute callback → iris-open sequence.
+ * @param {() => void} callback  Runs when the screen is fully black (midpoint).
+ */
+function startTransition(callback) {
+  transitionPhase    = 'closing';
+  transitionTimer    = 0;
+  transitionCallback = callback;
+}
+
+/** Advance the transition animation; call once per frame before state logic. */
+function updateTransition(dt) {
+  if (transitionPhase === 'none') return;
+  transitionTimer += dt;
+  const t = Math.min(transitionTimer / TRANSITION_SECS, 1);
+  if (transitionPhase === 'closing') {
+    setIrisRadius((1 - t) * transitionMaxRadius);
+    if (t >= 1) {
+      if (transitionCallback) { transitionCallback(); transitionCallback = null; }
+      transitionPhase = 'opening';
+      transitionTimer = 0;
+    }
+  } else {
+    setIrisRadius(t * transitionMaxRadius);
+    if (t >= 1) {
+      transitionPhase = 'none';
+      setIrisRadius(transitionMaxRadius); // ensure fully clear
+    }
+  }
+}
+
+// Initialise overlay to fully clear so it's invisible on page load.
+setIrisRadius(transitionMaxRadius);
 
 /** @param {number} totalSeconds */
 function formatTime(totalSeconds) {
@@ -162,6 +219,8 @@ initInput();
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   cam.onResize();
+  transitionMaxRadius = Math.hypot(window.innerWidth, window.innerHeight);
+  if (transitionPhase === 'none') setIrisRadius(transitionMaxRadius);
 });
 
 // ── Game loop ─────────────────────────────────────────────────────────────────
@@ -178,23 +237,24 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateInput();
+  updateTransition(dt);
 
   // ── Title state ────────────────────────────────────────────────────────────
   if (gameState === 'title') {
     cam.camera.position.copy(TITLE_CAM_POS);
     cam.camera.lookAt(TITLE_CAM_TARGET);
 
-    if (input.jumpPressed) {
-      gameState = 'playing';
-      titleEl.style.display = 'none';
-      hudEl.style.display   = 'block';
-      player.mesh.visible   = true;
-      playerShadow.visible  = true;
-      totalDeaths   = 0;
-      gameStartTime = Date.now();
-      // Re-respawn so player drops cleanly onto the floor from the spawn point.
-      player.respawn(spawn.x, spawn.y, spawn.z);
-      clock.getDelta(); // discard the stalled dt from the title screen pause
+    if (transitionPhase === 'none' && input.jumpPressed) {
+      startTransition(() => {
+        titleEl.style.display = 'none';
+        hudEl.style.display   = 'block';
+        player.mesh.visible   = true;
+        playerShadow.visible  = true;
+        totalDeaths   = 0;
+        gameStartTime = Date.now();
+        player.respawn(spawn.x, spawn.y, spawn.z);
+        gameState = 'playing';
+      });
     }
 
     renderer.render(scene, cam.camera);
@@ -206,17 +266,18 @@ function loop() {
     cam.camera.position.copy(TITLE_CAM_POS);
     cam.camera.lookAt(TITLE_CAM_TARGET);
 
-    if (!levelLoading && input.jumpPressed) {
-      finishEl.style.display = 'none';
-      hudEl.style.display    = 'block';
-      player.mesh.visible    = true;
-      playerShadow.visible   = true;
-      totalDeaths   = 0;
-      gameStartTime = Date.now();
-      currentLevel  = 1;
-      gameState     = 'playing';
-      loadLevel(1);
-      clock.getDelta();
+    if (transitionPhase === 'none' && !levelLoading && input.jumpPressed) {
+      startTransition(() => {
+        finishEl.style.display = 'none';
+        hudEl.style.display    = 'block';
+        player.mesh.visible    = true;
+        playerShadow.visible   = true;
+        totalDeaths   = 0;
+        gameStartTime = Date.now();
+        currentLevel  = 1;
+        gameState     = 'playing';
+        loadLevel(1);
+      });
     }
 
     renderer.render(scene, cam.camera);
@@ -228,24 +289,26 @@ function loop() {
     levelCompleteTimer += dt;
     cam.update(dt, player, input); // camera keeps drifting for a nice feel
 
-    if (levelCompleteTimer >= 0.5 && input.jumpPressed) {
-      levelCompleteEl.style.display = 'none';
-      if (currentLevel >= MAX_LEVELS) {
-        // All levels done — hand off to finish screen.
-        const elapsed = (Date.now() - gameStartTime) / 1000;
-        finishTimeEl.textContent  = `Time: ${formatTime(elapsed)}`;
-        finishDeathEl.textContent = `Deaths: ${totalDeaths}`;
-        finishEl.style.display    = 'flex';
-        player.mesh.visible       = false;
-        playerShadow.visible      = false;
-        hudEl.style.display       = 'none';
-        gameState = 'finish';
-      } else {
-        currentLevel++;
-        loadLevel(currentLevel);
-        hudEl.style.display = 'block';
-        gameState = 'playing';
-      }
+    if (transitionPhase === 'none' && levelCompleteTimer >= 0.5 && input.jumpPressed) {
+      startTransition(() => {
+        levelCompleteEl.style.display = 'none';
+        if (currentLevel >= MAX_LEVELS) {
+          // All levels done — hand off to finish screen.
+          const elapsed = (Date.now() - gameStartTime) / 1000;
+          finishTimeEl.textContent  = `Time: ${formatTime(elapsed)}`;
+          finishDeathEl.textContent = `Deaths: ${totalDeaths}`;
+          finishEl.style.display    = 'flex';
+          player.mesh.visible       = false;
+          playerShadow.visible      = false;
+          hudEl.style.display       = 'none';
+          gameState = 'finish';
+        } else {
+          currentLevel++;
+          loadLevel(currentLevel);
+          hudEl.style.display = 'block';
+          gameState = 'playing';
+        }
+      });
     }
 
     renderer.render(scene, cam.camera);
