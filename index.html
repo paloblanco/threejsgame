@@ -52,6 +52,22 @@
       pointer-events: none;
     }
 
+    #hud {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: sans-serif;
+      font-size: clamp(0.8rem, 2.5vw, 1.1rem);
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 1px 2px 6px rgba(0, 0, 0, 0.8);
+      letter-spacing: 0.06em;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+    }
+
     #title-screen {
       position: fixed;
       inset: 0;
@@ -96,6 +112,8 @@
 <body>
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
   <div id="jump-btn">▲</div>
+
+  <div id="hud"></div>
 
   <div id="title-screen">
     <h1>Signal Game</h1>

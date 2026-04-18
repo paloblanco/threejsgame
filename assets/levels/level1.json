@@ -1,20 +1,20 @@
 {
     "tiles": {
-        "g":{
-            "side":199,
-            "top":15,
-            "bottom":199
+        "g": {
+            "side": 199,
+            "top": 15,
+            "bottom": 199
         },
         "s": {
-            "side":59,
-            "top":63,
-            "bottom":199
+            "side": 59,
+            "top": 63,
+            "bottom": 199
         }
     },
-    "boxes":[
+    "boxes": [
         {
-            "y0":4,
-            "y1":5,
+            "y0": 4,
+            "y1": 5,
             "x0": 9,
             "x1": 13,
             "z0": 11,
@@ -23,7 +23,18 @@
         }
     ],
     "objects": [
-        { "type": "player", "x": 2.5, "y": 1, "z": 2.5 },
-        { "type": "chest",  "x": 7.5, "y": 1, "z": 7.5 }
-    ]
+        {
+            "type": "player",
+            "x": 2.5,
+            "y": 1,
+            "z": 2.5
+        },
+        {
+            "type": "chest",
+            "x": 7.5,
+            "y": 1,
+            "z": 7.5
+        }
+    ],
+    "levelName": "Grassy Greens"
 }

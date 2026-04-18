@@ -62,6 +62,7 @@ scene.add(chest.mesh);
 // 'playing' — normal gameplay.
 let gameState = 'title';
 const titleEl = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
+const hudEl   = /** @type {HTMLElement} */ (document.getElementById('hud'));
 
 // ── Level management ──────────────────────────────────────────────────────────
 const MAX_LEVELS = 10;
@@ -92,6 +93,7 @@ async function loadLevel(n) {
   player.respawn(spawn.x, spawn.y, spawn.z);
   chest.place(chestObj.x, chestObj.y, chestObj.z);
 
+  hudEl.textContent = `Level ${n}: ${level.levelName}`;
   levelLoading = false;
 }
 
@@ -156,6 +158,7 @@ function loop() {
     if (input.jumpPressed) {
       gameState = 'playing';
       titleEl.style.display = 'none';
+      hudEl.style.display   = 'block';
       player.mesh.visible   = true;
       playerShadow.visible  = true;
       // Re-respawn so player drops cleanly onto the floor from the spawn point.
