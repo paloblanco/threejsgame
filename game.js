@@ -63,13 +63,19 @@ scene.add(chest.mesh);
 let gameState = 'title';
 const titleEl       = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
 const hudEl         = /** @type {HTMLElement} */ (document.getElementById('hud'));
+const hudLevelEl    = /** @type {HTMLElement} */ (document.getElementById('hud-level'));
+const hudStatsEl    = /** @type {HTMLElement} */ (document.getElementById('hud-stats'));
 const finishEl      = /** @type {HTMLElement} */ (document.getElementById('finish-screen'));
 const finishTimeEl  = /** @type {HTMLElement} */ (document.getElementById('finish-time'));
 const finishDeathEl = /** @type {HTMLElement} */ (document.getElementById('finish-deaths'));
 
 // Stats tracked across a full run (reset when starting a new game).
-let totalDeaths    = 0;
-let gameStartTime  = 0; // Date.now() when playing begins
+let totalDeaths   = 0;
+let gameStartTime = 0; // Date.now() when playing begins
+
+// Per-level stats — reset on each new level load and on death.
+let levelDeaths = 0;
+let levelTimer  = 0; // seconds since last respawn on this level
 
 /** @param {number} totalSeconds */
 function formatTime(totalSeconds) {
@@ -107,7 +113,9 @@ async function loadLevel(n) {
   player.respawn(spawn.x, spawn.y, spawn.z);
   chest.place(chestObj.x, chestObj.y, chestObj.z);
 
-  hudEl.textContent = `Level ${n}: ${level.levelName}`;
+  hudLevelEl.textContent = `Level ${n}: ${level.levelName}`;
+  levelDeaths = 0;
+  levelTimer  = 0;
   levelLoading = false;
 }
 
@@ -209,11 +217,16 @@ function loop() {
   }
 
   // ── Playing state ──────────────────────────────────────────────────────────
+  levelTimer += dt;
+  hudStatsEl.textContent = `${formatTime(levelTimer)}  ·  ${levelDeaths} death${levelDeaths !== 1 ? 's' : ''}`;
+
   player.update(dt, input, level, cam.yaw);
   cam.update(dt, player, input);
 
   if (player.position.y < KILL_Y) {
     totalDeaths++;
+    levelDeaths++;
+    levelTimer = 0;
     player.respawn(spawn.x, spawn.y, spawn.z);
   }
 
