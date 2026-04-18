@@ -97,15 +97,49 @@
     }
 
     #title-screen .prompt {
+      /* inherits .screen-prompt via class */
+    }
+
+    @keyframes titleBlink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
+
+    /* Shared prompt style used by both title and finish screens */
+    .screen-prompt {
       font-size: clamp(1rem, 3vw, 1.5rem);
       font-weight: 600;
       letter-spacing: 0.08em;
       animation: titleBlink 1.3s ease-in-out infinite;
     }
 
-    @keyframes titleBlink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.25; }
+    #finish-screen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-family: sans-serif;
+      color: #fff;
+      text-shadow: 2px 3px 8px rgba(0, 0, 0, 0.9);
+    }
+
+    #finish-screen h1 {
+      font-size: clamp(2.5rem, 8vw, 5rem);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.6em;
+    }
+
+    #finish-screen .stats {
+      font-size: clamp(1rem, 3vw, 1.4rem);
+      font-weight: 400;
+      opacity: 0.9;
+      line-height: 1.8;
+      text-align: center;
+      margin: 0 0 1.8em;
     }
   </style>
 </head>
@@ -118,7 +152,16 @@
   <div id="title-screen">
     <h1>Signal Game</h1>
     <p class="subtitle">Palo Blanco Games 2026 &mdash; LD59</p>
-    <p class="prompt">Press Jump to Begin</p>
+    <p class="prompt screen-prompt">Press Jump to Begin</p>
+  </div>
+
+  <div id="finish-screen">
+    <h1>Good Job!</h1>
+    <div class="stats">
+      <p id="finish-time"></p>
+      <p id="finish-deaths"></p>
+    </div>
+    <p class="screen-prompt">Press Jump to Play Again</p>
   </div>
 
   <script type="importmap">
