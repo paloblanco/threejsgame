@@ -191,11 +191,85 @@
       z-index: 9999;
       /* JS sets background each frame; start fully transparent. */
     }
+
+    #pause-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #pause-btn:hover { background: rgba(0, 0, 0, 0.55); }
+
+    #pause-screen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 500;
+      font-family: sans-serif;
+      color: #fff;
+      text-shadow: 2px 3px 8px rgba(0, 0, 0, 0.9);
+    }
+
+    #pause-screen h2 {
+      font-size: clamp(2rem, 7vw, 4rem);
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      margin: 0 0 1.2em;
+    }
+
+    .pause-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+      min-width: 220px;
+    }
+
+    .pause-menu button {
+      padding: 12px 24px;
+      font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      text-shadow: none;
+      transition: background 0.15s;
+    }
+    .pause-menu button:hover { background: rgba(255, 255, 255, 0.25); }
   </style>
 </head>
 <body>
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
   <div id="jump-btn">▲</div>
+
+  <button id="pause-btn">&#9646;&#9646;</button>
+
+  <div id="pause-screen">
+    <h2>PAUSED</h2>
+    <div class="pause-menu">
+      <button id="pause-fullscreen-btn">Toggle Full Screen</button>
+      <button id="pause-resume-btn">Resume</button>
+    </div>
+  </div>
 
   <div id="hud">
     <div id="hud-level"></div>

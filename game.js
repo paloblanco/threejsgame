@@ -63,6 +63,7 @@ scene.add(chest.mesh);
 // 'playing'       — normal gameplay.
 // 'levelcomplete' — between levels; player frozen, overlay visible.
 // 'finish'        — all levels done.
+// 'paused'        — pause menu visible; scene frozen.
 let gameState = 'title';
 const titleEl         = /** @type {HTMLElement} */ (document.getElementById('title-screen'));
 const hudEl           = /** @type {HTMLElement} */ (document.getElementById('hud'));
@@ -75,6 +76,8 @@ const levelCompleteEl = /** @type {HTMLElement} */ (document.getElementById('lev
 const lcLevelTimeEl   = /** @type {HTMLElement} */ (document.getElementById('lc-level-time'));
 const lcDeathsEl      = /** @type {HTMLElement} */ (document.getElementById('lc-deaths'));
 const lcTotalTimeEl   = /** @type {HTMLElement} */ (document.getElementById('lc-total-time'));
+const pauseBtnEl      = /** @type {HTMLElement} */ (document.getElementById('pause-btn'));
+const pauseScreenEl   = /** @type {HTMLElement} */ (document.getElementById('pause-screen'));
 
 // Stats tracked across a full run (reset when starting a new game).
 let totalDeaths   = 0;
@@ -230,6 +233,39 @@ playerShadow.visible = false; // hidden until gameplay starts
 // ── Input ─────────────────────────────────────────────────────────────────────
 initInput();
 
+// ── Pause & fullscreen ────────────────────────────────────────────────────────
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function enterPause() {
+  gameState = 'paused';
+  pauseScreenEl.style.display = 'flex';
+  hudEl.style.display = 'none';
+}
+
+function exitPause() {
+  gameState = 'playing';
+  pauseScreenEl.style.display = 'none';
+  hudEl.style.display = 'block';
+}
+
+pauseBtnEl.addEventListener('click', () => {
+  if (gameState === 'playing' && transitionPhase === 'none') enterPause();
+});
+document.getElementById('pause-resume-btn')?.addEventListener('click', exitPause);
+document.getElementById('pause-fullscreen-btn')?.addEventListener('click', toggleFullscreen);
+
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Escape') return;
+  if (gameState === 'playing' && transitionPhase === 'none') enterPause();
+  else if (gameState === 'paused') exitPause();
+});
+
 // ── Resize ────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -253,6 +289,16 @@ function loop() {
 
   updateInput();
   updateTransition(dt);
+
+  // Pause button visible only while actively playing with no transition running.
+  pauseBtnEl.style.display =
+    (gameState === 'playing' && transitionPhase === 'none') ? 'flex' : 'none';
+
+  // ── Paused state ───────────────────────────────────────────────────────────
+  if (gameState === 'paused') {
+    renderer.render(scene, cam.camera);
+    return;
+  }
 
   // ── Title state ────────────────────────────────────────────────────────────
   if (gameState === 'title') {
