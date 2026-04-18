@@ -233,6 +233,9 @@ export class Level {
      */
     this.objects = [];
 
+    /** Display name from the level JSON "levelName" field. @type {string} */
+    this.levelName = '';
+
     /** @type {THREE.Group} */
     this.mesh = new THREE.Group();
 
@@ -341,7 +344,8 @@ export class Level {
       fetch(jsonUrl).then(r => r.json()),
     ]);
     this.build(csvText, levelJson.tiles ?? {}, levelJson.boxes ?? [], texture, scene);
-    this.objects = levelJson.objects ?? [];
+    this.objects   = levelJson.objects   ?? [];
+    this.levelName = levelJson.levelName ?? '';
   }
 
   /**
