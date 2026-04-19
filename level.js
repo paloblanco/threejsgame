@@ -228,6 +228,14 @@ export class Level {
     this.boxes = [];
 
     /**
+     * Hurtboxes: AABB hazards with animated sprite faces.
+     * @type {{ xMin:number, xMax:number, yMin:number, yMax:number, zMin:number, zMax:number,
+     *          mesh:THREE.Mesh, frameGeos:THREE.BufferGeometry[],
+     *          fps:number, frame:number, timer:number }[]}
+     */
+    this.hurtboxes = [];
+
+    /**
      * Spawn/goal objects from the level JSON "objects" array.
      * @type {{ type:string, x:number, y:number, z:number }[]}
      */
@@ -253,14 +261,21 @@ export class Level {
    * @param {object}        tileSprites  - The `.tiles` object from the level JSON.
    *   Shape: `{ [typeKey]: { side:number, top:number, bottom:number } }`
    * @param {any[]}         boxes        - The `.boxes` array from the level JSON.
+   * @param {any[]}         hurtboxDefs  - The `.hurtboxes` array from the level JSON.
    * @param {THREE.Texture} texture
    * @param {THREE.Scene}   scene
    */
-  build(csv, tileSprites, boxes, texture, scene) {
+  build(csv, tileSprites, boxes, hurtboxDefs, texture, scene) {
     scene.remove(this.mesh);
+    // Dispose previous hurtbox GPU resources before clearing.
+    for (const hb of this.hurtboxes) {
+      for (const geo of hb.frameGeos) geo.dispose();
+      /** @type {THREE.MeshLambertMaterial} */ (hb.mesh.material).dispose();
+    }
     this.mesh = new THREE.Group();
     this.grid.clear();
     this.boxes = [];
+    this.hurtboxes = [];
 
     const rows = csv.trim().split('\n').map(r =>
       r.trim().split(',').map(c => c.trim())
@@ -324,11 +339,54 @@ export class Level {
       const mesh = new THREE.Mesh(merged, mat);
       mesh.castShadow    = true;
       mesh.receiveShadow = true;
-      mesh.userData.tileType = type; // read by raycaster in player.js
+      mesh.userData.tileType = type;
       this.mesh.add(mesh);
     }
 
+    // ── Hurtboxes ──────────────────────────────────────────────────────────────
+    // Each hurtbox gets its own mesh so its geometry can be swapped each
+    // animation frame without affecting other geometry.
+    for (const b of hurtboxDefs) {
+      const wx0 = b.x0,     wy0 = b.y0,     wz0 = b.z0;
+      const wx1 = b.x1 + 1, wy1 = b.y1 + 1, wz1 = b.z1 + 1;
+      const sprites = Array.isArray(b.sprites) && b.sprites.length ? b.sprites : [0];
+      const fps     = b.fps ?? 8;
+
+      // Pre-build one geometry per animation frame.
+      const frameGeos = sprites.map(idx =>
+        buildBoxGeometry(wx0, wy0, wz0, wx1, wy1, wz1, idx, idx, idx)
+      );
+
+      const mat  = new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff, alphaTest: 0.1 });
+      const mesh = new THREE.Mesh(frameGeos[0], mat);
+      mesh.castShadow    = true;
+      mesh.receiveShadow = true;
+      this.mesh.add(mesh);
+
+      this.hurtboxes.push({
+        xMin: wx0, xMax: wx1, yMin: wy0, yMax: wy1, zMin: wz0, zMax: wz1,
+        mesh, frameGeos, fps, frame: 0, timer: 0,
+      });
+    }
+
     scene.add(this.mesh);
+  }
+
+  /**
+   * Advance hurtbox animation; call once per frame during gameplay.
+   * @param {number} dt
+   */
+  updateHurtboxes(dt) {
+    for (const hb of this.hurtboxes) {
+      if (hb.frameGeos.length <= 1) continue;
+      hb.timer += dt;
+      const frameDur = 1 / hb.fps;
+      if (hb.timer >= frameDur) {
+        hb.timer -= frameDur;
+        hb.frame = (hb.frame + 1) % hb.frameGeos.length;
+        hb.mesh.geometry = hb.frameGeos[hb.frame];
+      }
+    }
   }
 
   /**
@@ -344,7 +402,7 @@ export class Level {
       fetch(csvUrl).then(r => r.text()),
       fetch(jsonUrl).then(r => r.json()),
     ]);
-    this.build(csvText, tilesJson, levelJson.boxes ?? [], texture, scene);
+    this.build(csvText, tilesJson, levelJson.boxes ?? [], levelJson.hurtboxes ?? [], texture, scene);
     this.objects   = levelJson.objects   ?? [];
     this.levelName = levelJson.levelName ?? '';
   }
