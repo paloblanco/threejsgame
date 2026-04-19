@@ -166,6 +166,16 @@ function formatTime(totalSeconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function triggerDeath() {
+  totalDeaths++;
+  levelDeaths++;
+  levelTimer = 0;
+  playSound(2);
+  player.startDeath();
+  dyingTimer = 0;
+  gameState = 'dying';
+}
+
 // ── Level management ──────────────────────────────────────────────────────────
 const MAX_LEVELS = 10;
 let currentLevel = 1;
@@ -418,15 +428,22 @@ function loop() {
   player.update(dt, input, level, cam.yaw);
   cam.update(dt, player, input);
 
-  if (player.position.y < KILL_Y) {
-    totalDeaths++;
-    levelDeaths++;
-    levelTimer = 0;
-    playSound(2); // death
-    player.startDeath();
-    dyingTimer = 0;
-    gameState = 'dying';
+  if (player.position.y < KILL_Y) triggerDeath();
+
+  // Hurtbox collision: player half-extents match player.js constants PW/PH.
+  if (gameState === 'playing' && !levelLoading) {
+    const PW = 0.22, PH = 0.50;
+    for (const hb of level.hurtboxes) {
+      if (player.position.x + PW > hb.xMin && player.position.x - PW < hb.xMax &&
+          player.position.y + PH > hb.yMin && player.position.y - PH < hb.yMax &&
+          player.position.z + PW > hb.zMin && player.position.z - PW < hb.zMax) {
+        triggerDeath();
+        break;
+      }
+    }
   }
+
+  level.updateHurtboxes(dt);
 
   // When the player reaches the chest, show the level-complete overlay.
   if (!levelLoading && chest.isTriggered(player.position)) {
