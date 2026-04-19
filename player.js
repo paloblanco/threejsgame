@@ -54,10 +54,10 @@ export class Player {
      * @type {Record<string, number[]>}
      */
     this.sprites = {
-      front: [238, 240, 239, 240, 239],
-      back:  [253, 255, 254, 255, 254],
-      right: [246, 248, 247, 249, 247],
-      dead:  [241, 242, 243, 242],   // placeholder — replace with real death-anim indices
+      front: [0, 1, 2, 3],
+      back:  [32, 33, 34, 35],
+      right: [16, 17, 18, 19],
+      dead:  [0, 1, 2, 3],   // placeholder — replace with real death-anim indices
     };
 
     /** Current camera-relative direction. @type {'front'|'back'|'right'} */
@@ -254,7 +254,7 @@ export class Player {
       if (this._walkTimer >= WALK_FRAME_SECS) {
         this._walkTimer = 0;
         // this._walkFrame = this._walkFrame === 0 ? 1 : 0;
-        this._walkFrame = (this._walkFrame + 1) % 5;
+        this._walkFrame = (this._walkFrame + 1) % 4;
       }
     } else {
       this._walkFrame = 0;

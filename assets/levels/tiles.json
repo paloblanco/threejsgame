@@ -1,12 +1,12 @@
 {
     "g": {
-        "side": 199,
-        "top": 15,
-        "bottom": 199
+        "side": 8,
+        "top": 6,
+        "bottom": 6
     },
     "s": {
-        "side": 59,
-        "top": 63,
-        "bottom": 199
+        "side": 36,
+        "top": 37,
+        "bottom": 37
     }
 }

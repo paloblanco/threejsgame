@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 
 const SHEET_COLS    = 16;
-const SPRITE_INDEX  = 45;
+const SPRITE_INDEX  = 4;
 const TRIGGER_DIST  = 1.2; // horizontal distance to trigger level transition
 
 export class Chest {
