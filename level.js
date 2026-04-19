@@ -335,15 +335,16 @@ export class Level {
    * Fetch both CSV and level JSON then call build().
    * @param {string}        csvUrl
    * @param {string}        jsonUrl
+   * @param {object}        tilesJson - Pre-loaded tiles.json content.
    * @param {THREE.Texture} texture
    * @param {THREE.Scene}   scene
    */
-  async load(csvUrl, jsonUrl, texture, scene) {
+  async load(csvUrl, jsonUrl, tilesJson, texture, scene) {
     const [csvText, levelJson] = await Promise.all([
       fetch(csvUrl).then(r => r.text()),
       fetch(jsonUrl).then(r => r.json()),
     ]);
-    this.build(csvText, levelJson.tiles ?? {}, levelJson.boxes ?? [], texture, scene);
+    this.build(csvText, tilesJson, levelJson.boxes ?? [], texture, scene);
     this.objects   = levelJson.objects   ?? [];
     this.levelName = levelJson.levelName ?? '';
   }

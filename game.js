@@ -49,6 +49,10 @@ spritesheet.magFilter = THREE.NearestFilter; // pixel-art: no interpolation
 spritesheet.minFilter = THREE.NearestFilter;
 spritesheet.colorSpace = THREE.SRGBColorSpace;
 
+// ── Tile definitions ──────────────────────────────────────────────────────────
+// Loaded once; shared by every level so they don't each duplicate the data.
+const tilesJson = await fetch('./assets/levels/tiles.json').then(r => r.json());
+
 // ── Game objects ──────────────────────────────────────────────────────────────
 const level  = new Level();
 const player = new Player(spritesheet);
@@ -178,6 +182,7 @@ async function loadLevel(n) {
   await level.load(
     `./assets/levels/level${n}.csv`,
     `./assets/levels/level${n}.json`,
+    tilesJson,
     spritesheet,
     scene,
   );
